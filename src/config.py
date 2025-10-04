@@ -10,10 +10,21 @@ class Settings(BaseSettings):
     DB_HOST: str
     DB_PORT: int
     DB_NAME: str
-
+    SECRET_KEY: str
+    ALGORITHM: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env")
     )
+
+    def get_algorithm(self):
+        return f"{self.ALGORITHM}"
+
+    def get_access_token_expire_minutes(self):
+        return self.ACCESS_TOKEN_EXPIRE_MINUTES
+
+    def get_secret_key(self):
+        return f"{self.SECRET_KEY}"
 
     def get_db_url(self):
         return (f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@"
