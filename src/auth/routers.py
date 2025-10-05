@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Form
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi.security import OAuth2PasswordRequestForm
 
 from src.auth.dependencies import get_async_session
 from src.auth.schemas import UserAdd, UserLogin, FormUserLogin
-from src.auth.service import add_user_to_db, login_user_from_db
+from src.auth.service import add_user_to_db, login_user_from_db, refresh_access_token_in_db, logout_user_from_db
 from src.auth.utils import get_current_user
 
 auth_router = APIRouter()
@@ -19,13 +20,29 @@ async def reg_user(
 
 @auth_router.post("/login")
 async def login_user(
-        form_data: FormUserLogin = Depends(),
+        form_data: OAuth2PasswordRequestForm = Depends(),
         session: AsyncSession = Depends(get_async_session)
 ):
-    return await login_user_from_db(form_data.model, session)
+    user_data = UserLogin(email=form_data.username, password=form_data.password)
+
+    return await login_user_from_db(user_data, session)
 
 
-@auth_router.get("/me")
-async def get_my_posts(user_id: str = Depends(get_current_user)):
-    return {"message": f"Posts for user {user_id}"}
+@auth_router.post("/refresh")
+async def refresh_access_token(
+        token: str = Form(...),
+        session: AsyncSession = Depends(get_async_session)
+):
+    return await refresh_access_token_in_db(token, session)
+
+
+@auth_router.post("/logout")
+async def logout_user(
+        token: str = Form(...),
+        session: AsyncSession = Depends(get_async_session)
+):
+    return await logout_user_from_db(token, session)
+
+
+
 
