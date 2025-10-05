@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import Request
 
 from src.auth.dependencies import get_async_session
 from src.auth.schemas import UserAdd, UserLogin, FormUserLogin
@@ -30,18 +31,25 @@ async def login_user(
 
 @auth_router.post("/refresh")
 async def refresh_access_token(
-        token: str = Form(...),
+        request: Request,
         session: AsyncSession = Depends(get_async_session)
 ):
+    token = request.cookies.get("refresh_token")
     return await refresh_access_token_in_db(token, session)
 
 
 @auth_router.post("/logout")
 async def logout_user(
-        token: str = Form(...),
+        request: Request,
         session: AsyncSession = Depends(get_async_session)
 ):
+    token = request.cookies.get("refresh_token")
     return await logout_user_from_db(token, session)
+
+
+@auth_router.get("/me")
+async def get_my_posts(user_id: str = Depends(get_current_user)):
+    return {"message": f"Posts for user {user_id}"}
 
 
 

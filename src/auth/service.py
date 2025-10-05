@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 
 from select import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.responses import JSONResponse
 
 from src.auth.schemas import UserAdd, UserLogin
 from src.auth.utils import hash_password, create_access_token, verify_password
@@ -66,11 +67,21 @@ async def login_user_from_db(user_data: UserLogin, session: AsyncSession):
     session.add(refresh_token)
     await session.commit()
 
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token.token,
-        "token_type": "bearer"
-    }
+    response = JSONResponse(
+        content={
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token.token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=60 * 60 * 24 * settings.get_refresh_token_expire_days()
+    )
+    return response
 
 
 async def refresh_access_token_in_db(token: str, session: AsyncSession):
@@ -99,12 +110,17 @@ async def logout_user_from_db(token: str, session: AsyncSession):
     )
 
     token = result.scalar_one_or_none()
+    if not token:
+        raise HTTPException(status_code=401, detail="Refresh токен отсутсвует")
     if token:
         await session.delete(token)
         await session.commit()
-    return {
+    response = JSONResponse(content={
         "detail": "Вы вышли из системы"
-    }
+    })
+    response.delete_cookie("refresh_token")
+    return response
+
 
 
 
