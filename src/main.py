@@ -1,8 +1,6 @@
-import asyncio
 from contextlib import asynccontextmanager
-from datetime import datetime
 import uvicorn
-from fastapi import FastAPI, Response, Cookie
+from fastapi import FastAPI
 from src.database.database import async_main, drop_all_tables
 from src.routers import register_routers
 
@@ -22,6 +20,6 @@ register_routers(app)
 
 
 if __name__ == "__main__":
-    uvicorn.run("src.main:app", host="127.0.0.1", port=8000)  # ← без reload
+    uvicorn.run("src.main:app", host="127.0.0.1", port=8000)
 
 

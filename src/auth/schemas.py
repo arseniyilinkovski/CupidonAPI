@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from fastapi import Form, HTTPException
 from pydantic import BaseModel, EmailStr, ValidationError
 

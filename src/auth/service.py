@@ -96,12 +96,29 @@ async def refresh_access_token_in_db(token: str, session: AsyncSession):
     )
     if not user:
         raise HTTPException(status_code=404, detail="Пользотватель не найден")
+    await session.delete(token)
+    new_refresh_token = RefreshTokens(
+        user_id=user.id,
+        expires_at=datetime.utcnow() + timedelta(days=settings.get_refresh_token_expire_days())
+    )
+    session.add(new_refresh_token)
+    await session.commit()
 
     new_access_token = create_access_token({"sub": user.email})
-    return {
+
+    response = JSONResponse(content={
         "access_token": new_access_token,
         "token_type": "bearer"
-    }
+    })
+    response.set_cookie(
+        key="refresh_token",
+        value=new_refresh_token.token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=60 * 60 * 24 * settings.get_refresh_token_expire_days()
+    )
+    return response
 
 
 async def logout_user_from_db(token: str, session: AsyncSession):
