@@ -93,3 +93,8 @@ cython_debug/
 # OS-specific
 .DS_Store
 Thumbs.db
+
+# Alembic
+alembic/__pycache__/
+alembic/versions/__pycache__/
+*.pyc
