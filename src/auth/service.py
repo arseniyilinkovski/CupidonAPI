@@ -1,18 +1,20 @@
 from datetime import datetime, timedelta
 
+from jose import jwt, JWTError
 from pydantic_core import ValidationError
 from select import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 
+from src.auth.dependencies import oauth2_scheme, get_async_session
 from src.auth.schemas import UserAdd, UserLogin
 from src.auth.utils import hash_password, create_access_token, verify_password, create_email_confirmation_token, \
-    send_confirmation_email
+    send_confirmation_email, SECRET_KEY, ALGORITHM
 from src.config import settings
 from src.database.models import Users, RefreshTokens
 
 from sqlalchemy import select
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Depends
 from sqlalchemy.exc import IntegrityError
 
 
@@ -163,4 +165,21 @@ async def confirm_user_email(token: str, session: AsyncSession):
     return {
         "message": "Email успешно подтвержден!"
     }
+
+
+async def get_current_user(session: AsyncSession = Depends(get_async_session),
+                           token: str = Depends(oauth2_scheme),
+                           ):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        user = await session.scalar(select(Users).where(Users.email == user_id))
+        if not user or not user.is_confirmed:
+            raise HTTPException(status_code=403, detail="Email не подтвержден")
+
+        return user_id
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token verification failed")
 

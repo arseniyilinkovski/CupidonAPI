@@ -6,8 +6,7 @@ from fastapi import Request
 from src.auth.dependencies import get_async_session
 from src.auth.schemas import UserAdd, UserLogin, FormUserLogin
 from src.auth.service import add_user_to_db, login_user_from_db, refresh_access_token_in_db, logout_user_from_db, \
-    confirm_user_email
-from src.auth.utils import get_current_user
+    confirm_user_email, get_current_user
 
 auth_router = APIRouter()
 
