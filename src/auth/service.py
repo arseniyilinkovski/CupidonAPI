@@ -68,6 +68,15 @@ async def login_user_from_db(user_data: UserLogin, session: AsyncSession):
                 detail="Ошибочные данные!"
             )
         access_token = create_access_token({"sub": user.email})
+        existing_refresh_tokens = await session.scalars(
+            select(RefreshTokens).where(RefreshTokens.user_id == user.id)
+        )
+        refresh_tokens_list = list(existing_refresh_tokens)
+        if len(refresh_tokens_list) > 5:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Превышено время одновременных сессий!"
+            )
         refresh_token = RefreshTokens(
             user_id=user.id,
             expires_at=datetime.utcnow() + timedelta(days=settings.get_refresh_token_expire_days())
@@ -110,6 +119,7 @@ async def refresh_access_token_in_db(token: str, session: AsyncSession):
     if not user:
         raise HTTPException(status_code=404, detail="Пользотватель не найден")
     await session.delete(token)
+
     new_refresh_token = RefreshTokens(
         user_id=user.id,
         expires_at=datetime.utcnow() + timedelta(days=settings.get_refresh_token_expire_days())
@@ -145,11 +155,11 @@ async def logout_user_from_db(token: str, session: AsyncSession):
     if token:
         await session.delete(token)
         await session.commit()
-    response = JSONResponse(content={
-        "detail": "Вы вышли из системы"
-    })
-    response.delete_cookie("refresh_token")
-    return response
+        response = JSONResponse(content={
+            "detail": "Вы вышли из системы"
+        })
+        response.delete_cookie("refresh_token")
+        return response
 
 
 async def confirm_user_email(token: str, session: AsyncSession):

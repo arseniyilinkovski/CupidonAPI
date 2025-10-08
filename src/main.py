@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
-from src.database.database import async_main, drop_all_tables
+from src.database.database import  drop_all_tables
 from src.routers import register_routers
 
 
@@ -9,8 +9,8 @@ from src.routers import register_routers
 async def lifespan(app: FastAPI):
     await drop_all_tables()
     print("База очищена")
-    await async_main()
-    print("База создана")
+    # await async_main()
+    # print("База создана")
     yield
 
 
