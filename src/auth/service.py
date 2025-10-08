@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta
 
+from pydantic_core import ValidationError
 from select import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 
 from src.auth.schemas import UserAdd, UserLogin
-from src.auth.utils import hash_password, create_access_token, verify_password
+from src.auth.utils import hash_password, create_access_token, verify_password, create_email_confirmation_token, \
+    send_confirmation_email
 from src.config import settings
 from src.database.models import Users, RefreshTokens
 
@@ -29,7 +31,9 @@ async def add_user_to_db(user_data: UserAdd, session: AsyncSession):
     user = Users(**user_data.dict())
 
     access_token = create_access_token({"sub": user.email})
-
+    confirmation_token = create_email_confirmation_token()
+    user.confirmation_token = confirmation_token
+    await send_confirmation_email(user.email, confirmation_token)
     session.add(user)
     try:
         await session.commit()
@@ -53,35 +57,42 @@ async def add_user_to_db(user_data: UserAdd, session: AsyncSession):
 
 
 async def login_user_from_db(user_data: UserLogin, session: AsyncSession):
-    user = await session.scalar(select(Users).where(Users.email == user_data.email))
-    if not user or not verify_password(user_data.password, user.password):
+    try:
+
+        user = await session.scalar(select(Users).where(Users.email == user_data.email))
+        if not user or not verify_password(user_data.password, user.password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ошибочные данные!"
+            )
+        access_token = create_access_token({"sub": user.email})
+        refresh_token = RefreshTokens(
+            user_id=user.id,
+            expires_at=datetime.utcnow() + timedelta(days=settings.get_refresh_token_expire_days())
+        )
+        session.add(refresh_token)
+        await session.commit()
+
+        response = JSONResponse(
+            content={
+                "access_token": access_token,
+                "token_type": "bearer"
+            }
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token.token,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=60 * 60 * 24 * settings.get_refresh_token_expire_days()
+        )
+        return response
+    except ValidationError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ошибочные данные!"
+            detail="Введены неверные данные"
         )
-    access_token = create_access_token({"sub": user.email})
-    refresh_token = RefreshTokens(
-        user_id=user.id,
-        expires_at=datetime.utcnow() + timedelta(days=settings.get_refresh_token_expire_days())
-    )
-    session.add(refresh_token)
-    await session.commit()
-
-    response = JSONResponse(
-        content={
-            "access_token": access_token,
-            "token_type": "bearer"
-        }
-    )
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token.token,
-        httponly=True,
-        secure=True,
-        samesite="strict",
-        max_age=60 * 60 * 24 * settings.get_refresh_token_expire_days()
-    )
-    return response
 
 
 async def refresh_access_token_in_db(token: str, session: AsyncSession):
@@ -139,7 +150,17 @@ async def logout_user_from_db(token: str, session: AsyncSession):
     return response
 
 
-
-
-
+async def confirm_user_email(token: str, session: AsyncSession):
+    user = await session.scalar(select(Users).where(Users.confirmation_token == token))
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="Неверный токен"
+        )
+    user.is_confirmed = True
+    user.confirmation_token = None
+    await session.commit()
+    return {
+        "message": "Email успешно подтвержден!"
+    }
 

@@ -1,7 +1,9 @@
+import uuid
 from datetime import datetime, timedelta
 
 import bcrypt
 from fastapi import Depends, HTTPException
+from fastapi_mail import MessageSchema, FastMail
 from jose import jwt, JWTError
 
 from src.auth.dependencies import oauth2_scheme
@@ -39,4 +41,21 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Token verification failed")
 
 
+def create_email_confirmation_token() -> str:
+    return uuid.uuid4().hex
+
+
+async def send_confirmation_email(email: str, token: str):
+    message = MessageSchema(
+        subject="Подтверждение регистрации",
+        recipients=[email],
+        body=f"""
+                 <h3>Добро пожаловать!</h3>
+        <p>Для подтверждения email перейдите по ссылке:</p>
+        <a href="http://127.0.0.1:8000/auth/confirm?token={token}">Подтвердить email</a>
+            """,
+        subtype="html"
+    )
+    fm = FastMail(settings.config_smtp_provider())
+    await fm.send_message(message)
 
