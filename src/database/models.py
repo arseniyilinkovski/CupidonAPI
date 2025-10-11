@@ -20,6 +20,7 @@ class Users(Base):
     confirmation_token: Mapped[str] = mapped_column(nullable=True)
     is_confirmed: Mapped[bool] = mapped_column(default=False)
     password_reset_confirmation_token: Mapped[str] = mapped_column(nullable=True)
+    password_reset_confirmation_token_expires: Mapped[datetime] = mapped_column(DateTime, nullable=True)
 
 
 class Profiles(Base):

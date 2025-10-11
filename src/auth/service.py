@@ -7,13 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 
 from src.auth.dependencies import oauth2_scheme, get_async_session
-from src.auth.schemas import UserAdd, UserLogin
+from src.auth.schemas import UserAdd, UserLogin, ResetPasswordRequest
 from src.auth.utils import hash_password, create_access_token, verify_password, create_confirmation_token, \
     send_confirmation_email, SECRET_KEY, ALGORITHM
 from src.config import settings
 from src.database.models import Users, RefreshTokens
 
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from fastapi import HTTPException, status, Depends
 from sqlalchemy.exc import IntegrityError
 
@@ -199,4 +199,59 @@ async def get_current_user(session: AsyncSession = Depends(get_async_session),
     except JWTError:
         raise HTTPException(status_code=401, detail="Token verification failed")
 
+
+async def forgot_password_in_db(
+        email: str,
+        session: AsyncSession
+):
+    user = await session.scalar(select(Users).where(Users.email == email))
+    if not user:
+        return {
+            "message": "Если пользователь с таким email существует, оптравили письмо с дальнейшими указаниями"
+        }
+    password_reset_token = create_confirmation_token()
+    user.password_reset_confirmation_token = password_reset_token
+    user.password_reset_confirmation_token_expires = datetime.utcnow() + timedelta(hours=1)
+
+    await session.commit()
+    await send_confirmation_email(
+        email,
+        password_reset_token,
+        "Сброс пароля",
+        "Для сброса пароля пожалуйста, перейдите по ссылке: ",
+        "/auth/reset-password-page"
+    )
+    return {
+        "message": "Если пользователь с таким email существует, оптравили письмо с дальнейшими указаниями"
+    }
+
+
+async def reset_password_in_db(reset_data: ResetPasswordRequest,
+                               session: AsyncSession
+                               ):
+    user = await session.scalar(
+        select(Users).where(
+            Users.password_reset_confirmation_token == reset_data.token,
+            Users.password_reset_confirmation_token_expires > datetime.utcnow()
+        )
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный или просроченный токен сброса пароля"
+        )
+
+    user.password = hash_password(reset_data.new_password)
+    user.password_reset_confirmation_token = None
+    user.password_reset_confirmation_token_expires = None
+
+    await session.execute(
+        delete(RefreshTokens).where(RefreshTokens.user_id == user.id)
+    )
+    await session.commit()
+
+    return {
+        "message": "Пароль успешно изменен"
+    }
 
