@@ -30,24 +30,27 @@ def create_access_token(data: dict):
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-
-
-
-def create_email_confirmation_token() -> str:
+def create_confirmation_token() -> str:
     return uuid.uuid4().hex
 
 
-async def send_confirmation_email(email: str, token: str):
+async def send_confirmation_email(
+        email: str,
+        token: str,
+        subject: str,
+        body: str,
+        route: str
+):
+    URL = settings.get_URL()
     message = MessageSchema(
-        subject="Подтверждение регистрации",
+        subject=f"{subject}",
         recipients=[email],
         body=f"""
                  <h3>Добро пожаловать!</h3>
-        <p>Для подтверждения email перейдите по ссылке:</p>
-        <a href="http://127.0.0.1:8000/auth/confirm?token={token}">Подтвердить email</a>
+        <p>{body}</p>
+        <a href="{URL}{route}?token={token}">Подтвердить email</a>
             """,
         subtype="html"
     )
     fm = FastMail(settings.config_smtp_provider())
     await fm.send_message(message)
-

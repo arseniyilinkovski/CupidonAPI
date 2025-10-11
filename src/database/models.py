@@ -19,6 +19,7 @@ class Users(Base):
     refresh_tokens: Mapped[list["RefreshTokens"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     confirmation_token: Mapped[str] = mapped_column(nullable=True)
     is_confirmed: Mapped[bool] = mapped_column(default=False)
+    password_reset_confirmation_token: Mapped[str] = mapped_column(nullable=True)
 
 
 class Profiles(Base):

@@ -25,5 +25,14 @@ class FormUserLogin:
             raise HTTPException(status_code=422, detail=e.errors())
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
 class User(UserAdd):
     pass #TODO Дописать схему для юзера

@@ -8,7 +8,7 @@ from starlette.responses import JSONResponse
 
 from src.auth.dependencies import oauth2_scheme, get_async_session
 from src.auth.schemas import UserAdd, UserLogin
-from src.auth.utils import hash_password, create_access_token, verify_password, create_email_confirmation_token, \
+from src.auth.utils import hash_password, create_access_token, verify_password, create_confirmation_token, \
     send_confirmation_email, SECRET_KEY, ALGORITHM
 from src.config import settings
 from src.database.models import Users, RefreshTokens
@@ -33,9 +33,15 @@ async def add_user_to_db(user_data: UserAdd, session: AsyncSession):
     user = Users(**user_data.dict())
 
     access_token = create_access_token({"sub": user.email})
-    confirmation_token = create_email_confirmation_token()
-    user.confirmation_token = confirmation_token
-    await send_confirmation_email(user.email, confirmation_token)
+    email_confirmation_token = create_confirmation_token()
+    user.confirmation_token = email_confirmation_token
+    await send_confirmation_email(
+        user.email,
+        email_confirmation_token,
+        "Подтверждение email",
+        "Для подтверждения email, пожалуйста, перейдите по ссылке:",
+        "/auth/confirm"
+    )
     session.add(user)
     try:
         await session.commit()
@@ -192,4 +198,5 @@ async def get_current_user(session: AsyncSession = Depends(get_async_session),
         return user_id
     except JWTError:
         raise HTTPException(status_code=401, detail="Token verification failed")
+
 

@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     SMTP_PROVIDER: str
     GMAIL_APP_PASSWORD: str
     GMAIL_USERNAME: str
+    URL: str
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env")
@@ -38,6 +39,8 @@ class Settings(BaseSettings):
             return conf
 
 
+    def get_URL(self):
+        return self.URL
 
 
     def get_refresh_token_expire_days(self):
