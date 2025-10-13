@@ -3,7 +3,6 @@ from pydantic import BaseModel, EmailStr, ValidationError
 
 
 class UserAdd(BaseModel):
-    name: str
     email: str
     password: str
 
@@ -32,7 +31,3 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
-
-
-class User(UserAdd):
-    pass #TODO Дописать схему для юзера

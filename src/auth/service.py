@@ -58,8 +58,7 @@ async def add_user_to_db(user_data: UserAdd, session: AsyncSession):
         "token_type": "bearer",
         "user": {
             "id": user.id,
-            "email": user.email,
-            "name": user.name
+            "email": user.email
         }
     }
 
@@ -195,8 +194,9 @@ async def get_current_user(session: AsyncSession = Depends(get_async_session),
         if not user or not user.is_confirmed:
             raise HTTPException(status_code=403, detail="Email не подтвержден")
 
-        return user_id
-    except JWTError:
+        return user.id
+    except JWTError as e:
+        print("JWTError: ", str(e))
         raise HTTPException(status_code=401, detail="Token verification failed")
 
 

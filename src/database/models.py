@@ -9,6 +9,10 @@ class Base(AsyncAttrs, DeclarativeBase):
     __abstract__ = True
 
 
+class GeoBase(AsyncAttrs, DeclarativeBase):
+    __abstract__ = True
+
+
 class Users(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -56,3 +60,33 @@ class RefreshTokens(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow())
 
     user: Mapped["Users"] = relationship(back_populates="refresh_tokens")
+
+
+class Country(GeoBase):
+    __tablename__ = "countries"
+
+    code: Mapped[str] = mapped_column(primary_key=True)
+    name_en: Mapped[str]
+    name_ru: Mapped[str]
+
+
+class Region(GeoBase):
+    __tablename__ = "regions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name_en: Mapped[str]
+    name_ru: Mapped[str]
+    country_code: Mapped[str] = mapped_column(ForeignKey("countries.code"))
+
+    country: Mapped["Country"] = relationship(backref="regions")
+
+
+class City(GeoBase):
+    __tablename__ = "cities"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name_en: Mapped[str]
+    name_ru: Mapped[str]
+    region_id: Mapped[int] = mapped_column(ForeignKey("regions.id"))
+
+    region: Mapped["Region"] = relationship(backref="cities")

@@ -3,7 +3,7 @@ from sqlalchemy import pool
 from sqlalchemy import create_engine
 from alembic import context
 
-from src.database.models import Base
+from src.database.models import Base, GeoBase
 
 # Конфигурация Alembic
 config = context.config
@@ -15,7 +15,7 @@ config.set_main_option(
     "postgresql+psycopg2://postgres:postgres@localhost:5432/cupidon_db"
 )
 
-target_metadata = Base.metadata
+target_metadata = [Base.metadata, GeoBase.metadata]
 
 
 def run_migrations_offline():
