@@ -7,8 +7,8 @@ from src.routers import register_routers
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # await drop_all_tables()
-    # print("База очищена")
+    await drop_all_tables()
+    print("База очищена")
     # await async_main()
     # print("База создана")
     yield

@@ -41,6 +41,7 @@ async def send_confirmation_email(
         body: str,
         route: str
 ):
+
     URL = settings.get_URL()
     message = MessageSchema(
         subject=f"{subject}",

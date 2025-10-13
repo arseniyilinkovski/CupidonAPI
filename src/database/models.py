@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 from sqlalchemy import Integer, String, ForeignKey, func, DateTime
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -12,7 +12,6 @@ class Base(AsyncAttrs, DeclarativeBase):
 class Users(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    name: Mapped[str]
     email: Mapped[str] = mapped_column(unique=True)
     password: Mapped[str]
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
@@ -25,12 +24,23 @@ class Users(Base):
 
 class Profiles(Base):
     __tablename__ = 'profiles'
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
-    name: Mapped[str]  # копия имени для отображения
-    age: Mapped[int] = mapped_column(Integer)
-    city: Mapped[str] = mapped_column(String)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), unique=True, primary_key=True)
+    name: Mapped[str]
+    gender: Mapped[str]
+    orientation: Mapped[str]
+    birthday: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    last_active_at: Mapped[datetime] = mapped_column(DateTime)
+    country: Mapped[str]
+    region: Mapped[str]
+    city: Mapped[str]
     bio: Mapped[str] = mapped_column(String)
+
+    @property
+    def age(self) -> int:
+        today = date.today()
+        return today.year - self.birthday.year - (
+            (today.month, today.day) < (self.birthday.month, self.birthday.day)
+        )
 
 
 class RefreshTokens(Base):
