@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette import status
 
 from src.database.models import Profiles, Country, Region, City
 from src.profiles.schemas import AddProfile
@@ -65,3 +66,15 @@ async def validate_user_geo(profile: AddProfile, session: AsyncSession):
     )
     if not city:
         raise ValueError(f"Город '{profile.city}' не найден в регионе '{profile.region}'")
+
+
+async def get_user_profile_from_db(user_id: int, session: AsyncSession):
+    profile = await session.scalar(
+        select(Profiles).where(Profiles.user_id == user_id)
+    )
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Профиль не найден"
+        )
+    return profile.to_json

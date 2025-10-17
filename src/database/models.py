@@ -40,6 +40,21 @@ class Profiles(Base):
     bio: Mapped[str] = mapped_column(String)
 
     @property
+    def to_json(self):
+        return {
+            "user_id": self.user_id,
+            "name": self.name,
+            "gender": self.gender,
+            "orientation": self.orientation,
+            "age": self.age,
+            "last_active_at": self.last_active_at,
+            "country": self.country,
+            "region": self.region,
+            "city": self.city,
+            "bio": self.bio
+        }
+
+    @property
     def age(self) -> int:
         today = date.today()
         return today.year - self.birthday.year - (
