@@ -43,3 +43,4 @@ async def seed_cities(cities: dict):
                 )
                 session.add(city)
         await session.commit()
+

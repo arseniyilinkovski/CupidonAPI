@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import Integer, String, ForeignKey, func, DateTime
+from sqlalchemy import Integer, String, ForeignKey, func, DateTime, UniqueConstraint
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -24,6 +24,7 @@ class Users(Base):
     is_confirmed: Mapped[bool] = mapped_column(default=False)
     password_reset_confirmation_token: Mapped[str] = mapped_column(nullable=True)
     password_reset_confirmation_token_expires: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    scopes: Mapped[list["UserScopeLink"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class Profiles(Base):
@@ -75,6 +76,27 @@ class RefreshTokens(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow())
 
     user: Mapped["Users"] = relationship(back_populates="refresh_tokens")
+
+
+class Scopes(Base):
+    __tablename__ = "scopes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, unique=True)
+    description: Mapped[str] = mapped_column()
+
+    users: Mapped[list["UserScopeLink"]] = relationship(back_populates="scope", cascade="all, delete-orphan")
+
+
+class UserScopeLink(Base):
+    __tablename__ = "user_scope_links"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    scope_id: Mapped[int] = mapped_column(ForeignKey("scopes.id", ondelete="CASCADE"), nullable=False)
+
+    user: Mapped["Users"] = relationship(back_populates="scopes")   # <-- поле в Users
+    scope: Mapped["Scopes"] = relationship(back_populates="users")  # <-- поле в Scopes
 
 
 class Country(GeoBase):

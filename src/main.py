@@ -11,8 +11,6 @@ async def lifespan(app: FastAPI):
     # await seed_all()
     # await drop_all_tables()
     # print("База очищена")
-    # await async_main()
-    # print("База создана")
     yield
 
 
@@ -22,6 +20,7 @@ register_routers(app)
 
 
 if __name__ == "__main__":
-    uvicorn.run("src.main:app", host="127.0.0.1", port=8001)
+
+    uvicorn.run("src.main:app", host="127.0.0.1", port=8000)
 
 

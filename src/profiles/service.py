@@ -78,3 +78,21 @@ async def get_user_profile_from_db(user_id: int, session: AsyncSession):
             detail="Профиль не найден"
         )
     return profile.to_json
+
+
+async def get_profiles_from_db(user, session: AsyncSession):
+    profiles = await session.scalars(
+        select(Profiles).where(Profiles.user_id == user.id)
+    )
+    if not profiles:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Профили не найдены"
+        )
+
+    response = []
+    for profile in profiles:
+        response.append(profile.to_json)
+    return response
+
+

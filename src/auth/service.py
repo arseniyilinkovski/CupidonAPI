@@ -11,11 +11,25 @@ from src.auth.schemas import UserAdd, UserLogin, ResetPasswordRequest
 from src.auth.utils import hash_password, create_access_token, verify_password, create_confirmation_token, \
     send_confirmation_email, SECRET_KEY, ALGORITHM
 from src.config import settings
-from src.database.models import Users, RefreshTokens
+from src.database.models import Users, RefreshTokens, Scopes, UserScopeLink
 
 from sqlalchemy import select, delete
 from fastapi import HTTPException, status, Depends
 from sqlalchemy.exc import IntegrityError
+
+from src.scopes.service import assign_scopes_to_user, get_user_scopes
+
+
+def require_scope(required_scope: str):
+    async def checker(user_data=Depends(get_current_user)):
+        scopes = user_data["scopes"]
+        if required_scope not in scopes:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Недостаточно прав: требуется {required_scope}"
+            )
+        return user_data["user"]
+    return checker
 
 
 async def add_user_to_db(user_data: UserAdd, session: AsyncSession):
@@ -32,7 +46,6 @@ async def add_user_to_db(user_data: UserAdd, session: AsyncSession):
 
     user = Users(**user_data.dict())
 
-    access_token = create_access_token({"sub": user.email})
     email_confirmation_token = create_confirmation_token()
     user.confirmation_token = email_confirmation_token
     await send_confirmation_email(
@@ -52,13 +65,19 @@ async def add_user_to_db(user_data: UserAdd, session: AsyncSession):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ошибка при сохранении пользователя"
         )
+    default_scopes = ["user:read", "profile:read"]
+    await assign_scopes_to_user(session, default_scopes, user.id)
+
+    user_scopes = await get_user_scopes(session, user.id)
+    access_token = create_access_token({"sub": user.email}, scopes=user_scopes)
 
     return {
         "JWT-токен": access_token,
         "token_type": "bearer",
         "user": {
             "id": user.id,
-            "email": user.email
+            "email": user.email,
+            "scopes": user_scopes
         }
     }
 
@@ -72,7 +91,10 @@ async def login_user_from_db(user_data: UserLogin, session: AsyncSession):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Ошибочные данные!"
             )
-        access_token = create_access_token({"sub": user.email})
+        user_scopes = await session.scalars(
+            select(Scopes.name).join(UserScopeLink).where(UserScopeLink.user_id == user.id)
+        )
+        access_token = create_access_token({"sub": user.email}, list(user_scopes))
         existing_refresh_tokens = await session.scalars(
             select(RefreshTokens).where(RefreshTokens.user_id == user.id)
         )
@@ -185,16 +207,21 @@ async def confirm_user_email(token: str, session: AsyncSession):
 async def get_current_user(session: AsyncSession = Depends(get_async_session),
                            token: str = Depends(oauth2_scheme),
                            ):
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
+        scopes: list[str] = payload.get("scopes", [])
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
         user = await session.scalar(select(Users).where(Users.email == user_id))
         if not user or not user.is_confirmed:
             raise HTTPException(status_code=403, detail="Email не подтвержден")
 
-        return user.id
+        return {
+            "user": user,
+            "scopes": scopes
+        }
     except JWTError as e:
         print("JWTError: ", str(e))
         raise HTTPException(status_code=401, detail="Token verification failed")
