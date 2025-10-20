@@ -33,7 +33,7 @@ async def get_user_profile(
 
 @profiles_router.get("/get_profiles")
 async def get_profiles(
-        user=Depends(require_scope("user:read")),
+        user=Depends(require_scope("admin")),
         session: AsyncSession = Depends(get_async_session)
 ):
     return await get_profiles_from_db(user, session)
