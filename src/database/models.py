@@ -39,6 +39,8 @@ class Profiles(Base):
     region: Mapped[str]
     city: Mapped[str]
     bio: Mapped[str] = mapped_column(String)
+    photo_url: Mapped[str] = mapped_column(nullable=True)
+
 
     @property
     def to_json(self):
@@ -52,7 +54,8 @@ class Profiles(Base):
             "country": self.country,
             "region": self.region,
             "city": self.city,
-            "bio": self.bio
+            "bio": self.bio,
+            "photo_url": self.photo_url
         }
 
     @property

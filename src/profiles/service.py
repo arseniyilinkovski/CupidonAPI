@@ -6,10 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from src.database.models import Profiles, Country, Region, City
-from src.profiles.schemas import AddProfile
+from src.profiles.schemas import AddProfile, FormProfileCreate
+from src.profiles.utils import upload_photo_to_cloudinary
 
 
-async def add_user_profile_to_db(data: AddProfile, session: AsyncSession, user_id: int):
+async def add_user_profile_to_db(data: AddProfile, session: AsyncSession, user_id: int, photo_url: str):
     profile = await session.scalar(
         select(Profiles).where(Profiles.user_id == user_id)
     )
@@ -29,14 +30,46 @@ async def add_user_profile_to_db(data: AddProfile, session: AsyncSession, user_i
         country=data.country,
         region=data.region,
         city=data.city,
-        bio=data.bio
+        bio=data.bio,
+        photo_url=photo_url
     )
     session.add(new_profile)
     await session.commit()
     return {
         "message": "Профиль успешно создан",
-        "age": new_profile.age
+        "age": new_profile.age,
+        "photo_url": new_profile.photo_url
     }
+
+
+async def handle_add_profile(
+    form: FormProfileCreate,
+    user,
+    session: AsyncSession
+):
+    data = form.model
+
+    # 1. Валидация гео-данных
+    try:
+        await validate_user_geo(data, session)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # 2. Проверка на существующий профиль
+    existing_profile = await session.scalar(
+        select(Profiles).where(Profiles.user_id == user["user"].id)
+    )
+    if existing_profile:
+        raise HTTPException(
+            status_code=409,
+            detail="Профиль для этого пользователя уже существует"
+        )
+
+    # 3. Загрузка фото
+    photo_url = upload_photo_to_cloudinary(form.photo)
+
+    # 4. Добавление профиля
+    return await add_user_profile_to_db(data, session, user["user"].id, photo_url)
 
 
 async def validate_user_geo(profile: AddProfile, session: AsyncSession):

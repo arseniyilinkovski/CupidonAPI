@@ -1,5 +1,6 @@
 import os
 
+import cloudinary
 from fastapi_mail import ConnectionConfig
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -18,10 +19,21 @@ class Settings(BaseSettings):
     GMAIL_APP_PASSWORD: str
     GMAIL_USERNAME: str
     URL: str
+    CLOUDINARY_NAME: str
+    CLOUDINARY_API_KEY: str
+    CLOUDINARY_API_SECRET: str
 
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env")
     )
+
+    def config_cloudinary(self):
+        cloudinary.config(
+            cloud_name=self.CLOUDINARY_NAME,
+            api_key=self.CLOUDINARY_API_KEY,
+            api_secret=self.CLOUDINARY_API_SECRET,
+            secure=True
+        )
 
     def config_smtp_provider(self):
         if self.SMTP_PROVIDER == "gmail":
