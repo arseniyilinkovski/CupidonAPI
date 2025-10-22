@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependencies import get_async_session
@@ -13,11 +13,13 @@ profiles_router = APIRouter()
 
 @profiles_router.post("/add_profile")
 async def add_user_profile(
+    request: Request,
     form: FormProfileCreate = Depends(),
     user=Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session)
+    session: AsyncSession = Depends(get_async_session),
+
 ):
-    return await handle_add_profile(form, user, session)
+    return await handle_add_profile(form, user, session, request)
 
 
 @profiles_router.get("/get_profile")

@@ -1,11 +1,12 @@
 from datetime import datetime
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from src.database.models import Profiles, Country, Region, City
+from src.profiles.dependencies import get_nsfw_model
 from src.profiles.schemas import AddProfile, FormProfileCreate
 from src.profiles.utils import upload_photo_to_cloudinary
 
@@ -45,7 +46,8 @@ async def add_user_profile_to_db(data: AddProfile, session: AsyncSession, user_i
 async def handle_add_profile(
     form: FormProfileCreate,
     user,
-    session: AsyncSession
+    session: AsyncSession,
+    request: Request
 ):
     data = form.model
 
@@ -66,7 +68,7 @@ async def handle_add_profile(
         )
 
     # 3. Загрузка фото
-    photo_url = upload_photo_to_cloudinary(form.photo)
+    photo_url = upload_photo_to_cloudinary(form.photo, request)
 
     # 4. Добавление профиля
     return await add_user_profile_to_db(data, session, user["user"].id, photo_url)
