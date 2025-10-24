@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 from src.auth.dependencies import get_async_session
 from src.auth.schemas import UserAdd, UserLogin, FormUserLogin, ResetPasswordRequest, ForgotPasswordRequest
 from src.auth.service import add_user_to_db, login_user_from_db, refresh_access_token_in_db, logout_user_from_db, \
-    confirm_user_email, get_current_user, forgot_password_in_db, reset_password_in_db
+    confirm_user_email, get_current_user, forgot_password_in_db, reset_password_in_db, reset_all_user_refresh_tokens
 
 auth_router = APIRouter()
 
@@ -216,3 +216,12 @@ async def get_reset_password_form(token: str = Query(...)):
         </body>
     </html>
     """
+
+
+@auth_router.get("/exit_all")
+async def exit_all(
+        user = Depends(get_current_user),
+        session: AsyncSession = Depends(get_async_session)
+):
+    return await reset_all_user_refresh_tokens(user["user"], session)
+

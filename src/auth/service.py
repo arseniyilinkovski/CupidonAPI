@@ -100,6 +100,9 @@ async def login_user_from_db(user_data: UserLogin, session: AsyncSession):
         )
         refresh_tokens_list = list(existing_refresh_tokens)
         if len(refresh_tokens_list) > 5:
+            tokens_to_delete = sorted(refresh_tokens_list, key=lambda t: t.expires_at)[:len(refresh_tokens_list) - 5]
+            for token in tokens_to_delete:
+                await session.delete(token)
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Превышено время одновременных сессий!"
@@ -282,3 +285,13 @@ async def reset_password_in_db(reset_data: ResetPasswordRequest,
         "message": "Пароль успешно изменен"
     }
 
+
+async def reset_all_user_refresh_tokens(user, session: AsyncSession):
+    refresh_tokens = await session.scalars(
+        select(RefreshTokens).where(RefreshTokens.user_id == user.id)
+    )
+    await session.delete(refresh_tokens)
+    await session.commit()
+    return {
+        "message": "Вы вышли со всех устройств"
+    }
