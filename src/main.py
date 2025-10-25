@@ -16,7 +16,7 @@ from src.routers import register_routers
 async def lifespan(app: FastAPI):
     settings.config_cloudinary()
     h5_path = "ai-models/nsfw_model.h5"
-    saved_model_path = "ai-models/nsfw_model_finetuned.h5"
+    saved_model_path = "ai-models/nsfw_model.h5"
 
     # 🔧 1. Скачиваем .h5, если его нет
     if not os.path.exists(h5_path):

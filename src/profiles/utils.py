@@ -21,7 +21,7 @@ ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_FILE_SIZE_MB = 5
 
 
-def upload_photo_to_cloudinary(photo: UploadFile, request: Request) -> str:
+def upload_photo_to_cloudinary(photo: UploadFile, request: Request) -> dict:
     nsfw_model = request.app.state.nsfw_model
     if photo.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(
@@ -49,10 +49,12 @@ def upload_photo_to_cloudinary(photo: UploadFile, request: Request) -> str:
         photo.file,
         public_id=unique_filename,
         folder="user_photos",
-        overwrite=True,
         resource_type="image"
     )
-    return result["secure_url"]
+    return {
+        "photo_url": result["secure_url"],
+        "photo_public_id": result["public_id"]
+    }
 
 
 def is_image_safe(photo: UploadFile, model) -> bool:
@@ -70,4 +72,17 @@ def is_image_safe(photo: UploadFile, model) -> bool:
         scores["hentai"] >= 0.3 or
         scores["sexy"] >= 0.5
     )
+
+
+def delete_photo_from_cloudinary(public_id: str):
+    print("delete_photo_from_cloudinary")
+    try:
+        print(public_id)
+        cloudinary.uploader.destroy(public_id)
+        print("Файл удален")
+    except Exception as e:
+        print(f"Ошибка при удалении файла: {e}")
+
+
+
 

@@ -99,7 +99,7 @@ async def login_user_from_db(user_data: UserLogin, session: AsyncSession):
             select(RefreshTokens).where(RefreshTokens.user_id == user.id)
         )
         refresh_tokens_list = list(existing_refresh_tokens)
-        if len(refresh_tokens_list) > 5:
+        if len(refresh_tokens_list) > 40:
             tokens_to_delete = sorted(refresh_tokens_list, key=lambda t: t.expires_at)[:len(refresh_tokens_list) - 5]
             for token in tokens_to_delete:
                 await session.delete(token)
@@ -214,13 +214,18 @@ async def get_current_user(session: AsyncSession = Depends(get_async_session),
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
-        scopes: list[str] = payload.get("scopes", [])
+
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
         user = await session.scalar(select(Users).where(Users.email == user_id))
         if not user or not user.is_confirmed:
             raise HTTPException(status_code=403, detail="Email не подтвержден")
-
+        result = await session.execute(
+            select(Scopes.name)
+            .join(UserScopeLink)
+            .where(UserScopeLink.user_id == user.id)
+        )
+        scopes = [row[0] for row in result.all()]
         return {
             "user": user,
             "scopes": scopes

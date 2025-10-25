@@ -40,6 +40,7 @@ class Profiles(Base):
     city: Mapped[str]
     bio: Mapped[str] = mapped_column(String)
     photo_url: Mapped[str] = mapped_column(nullable=True)
+    photo_public_id: Mapped[str] = mapped_column(nullable=True)
 
 
     @property

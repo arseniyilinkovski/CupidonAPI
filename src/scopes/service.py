@@ -25,6 +25,7 @@ async def create_scope(session: AsyncSession, name: str, desc: str):
 
 async def assign_scopes_to_user(session: AsyncSession, scopes_names: list[str], user_id: int):
     for scope_name in scopes_names:
+        print(f"Назначаю скоуп {scope_name} пользователю {user_id}")
         scope = await session.scalar(
             select(Scopes).where(Scopes.name == scope_name)
         )
@@ -45,6 +46,7 @@ async def assign_scopes_to_user(session: AsyncSession, scopes_names: list[str], 
             }
         link = UserScopeLink(user_id=user_id, scope_id=scope.id)
         session.add(link)
+
     await session.commit()
 
 

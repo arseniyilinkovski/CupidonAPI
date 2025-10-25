@@ -3,9 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependencies import get_async_session
 from src.auth.service import get_current_user, require_scope
-from src.profiles.schemas import AddProfile, FormProfileCreate
+from src.profiles.schemas import AddProfile, FormProfileCreate, FormProfileUpdate
 from src.profiles.service import add_user_profile_to_db, validate_user_geo, get_user_profile_from_db, \
-    get_profiles_from_db, handle_add_profile
+    get_profiles_from_db, handle_add_profile, change_user_profile_in_db
 from src.profiles.utils import upload_photo_to_cloudinary
 
 profiles_router = APIRouter()
@@ -36,4 +36,15 @@ async def get_profiles(
         session: AsyncSession = Depends(get_async_session)
 ):
     return await get_profiles_from_db(user, session)
+
+
+@profiles_router.patch("/change_profile")
+async def change_profile(
+        request: Request,
+        form: FormProfileUpdate = Depends(),
+        session: AsyncSession = Depends(get_async_session),
+        user=Depends(require_scope("profile:edit")),
+
+):
+    return await change_user_profile_in_db(form, session, user, request)
 
