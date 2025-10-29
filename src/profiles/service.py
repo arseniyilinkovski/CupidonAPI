@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from src.database.models import Profiles, Country, Region, City
+from src.database.models import Profiles, Country, Region, City, Like
 from src.profiles.dependencies import get_nsfw_model
 from src.profiles.schemas import AddProfile, FormProfileCreate
 from src.profiles.utils import upload_photo_to_cloudinary, delete_photo_from_cloudinary
@@ -37,7 +37,7 @@ async def add_user_profile_to_db(data: AddProfile, session: AsyncSession, user_i
         photo_public_id=photo["photo_public_id"]
     )
     session.add(new_profile)
-    await assign_scopes_to_user(session, ['profile:edit'], user_id)
+    await assign_scopes_to_user(session, ['profile:edit', 'profile:like'], user_id)
     await session.commit()
     return {
         "message": "Профиль успешно создан",
@@ -162,3 +162,61 @@ async def change_user_profile_in_db(form, session: AsyncSession, user, request: 
         "photo_url": user_profile.photo_url
     }
 
+
+async def like_user_profile_in_db(
+        liked_user_id: int,
+        session: AsyncSession,
+        user
+):
+    like = await session.scalar(select(Like).where(Like.from_user_id == user.id and Like.to_user_id == liked_user_id))
+    if like:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Такая запись в таблице лайк существует"
+        )
+    new_like = Like(
+        from_user_id=user.id,
+        to_user_id=liked_user_id
+    )
+    # session.add(new_like)
+    liked_user_profile = await session.scalar(
+        select(Profiles).where(Profiles.user_id == liked_user_id)
+    )
+
+    if not liked_user_profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Профиль пользователя, которого лайнкнули, не найден"
+        )
+    liking_user_profile = await session.scalar(
+        select(Profiles).where(Profiles.user_id == user.id)
+    )
+    if not liking_user_profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Профиль пользователя, который лайкнул, не найден"
+        )
+    if liking_user_profile.user_id == liked_user_profile.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Невозможно совершить лайк между одними и теми же пользователями"
+        )
+
+    current_test_score = liking_user_profile.test_score
+    liked_test_score = liked_user_profile.test_score
+    if current_test_score < liked_test_score:
+        delta = (liked_test_score - current_test_score) / 2
+        current_test_score += delta
+    elif current_test_score > liked_test_score:
+        delta = (current_test_score - liked_test_score) / 2
+        current_test_score -= delta
+
+    liking_user_profile.test_score = current_test_score
+    print(current_test_score)
+    print(liking_user_profile.test_score)
+    await session.commit()
+    return {
+        "status": 200,
+        "message": f"Вы успешно лайкнули пользовтеля {liked_user_profile.name}",
+        "new_test_score": current_test_score
+    }

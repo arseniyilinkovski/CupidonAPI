@@ -239,16 +239,20 @@ async def forgot_password_in_db(
         email: str,
         session: AsyncSession
 ):
+    print("Рука обработана")
     user = await session.scalar(select(Users).where(Users.email == email))
+    print(user)
     if not user:
         return {
             "message": "Если пользователь с таким email существует, оптравили письмо с дальнейшими указаниями"
         }
+    print("Получил юзера")
     password_reset_token = create_confirmation_token()
     user.password_reset_confirmation_token = password_reset_token
     user.password_reset_confirmation_token_expires = datetime.utcnow() + timedelta(hours=1)
 
     await session.commit()
+    print("Отправляю письмо")
     await send_confirmation_email(
         email,
         password_reset_token,

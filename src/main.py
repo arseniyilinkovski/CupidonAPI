@@ -1,20 +1,22 @@
 import os
 import urllib
 from contextlib import asynccontextmanager
+
+import cloudinary.api
 import uvicorn
 from fastapi import FastAPI
 from nsfw_detector import predict
 from tensorflow import keras
 
 from src.config import settings
-from src.database.database import  drop_all_tables
-from src.geo.core import seed_all
 from src.routers import register_routers
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings.config_cloudinary()
+    # cloudinary.api.delete_resources(resource_type='image')
+
     h5_path = "ai-models/nsfw_model.h5"
     saved_model_path = "ai-models/nsfw_model.h5"
 

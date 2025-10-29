@@ -17,6 +17,7 @@ class Orientation(str, Enum):
     bisexual = "bisexual"
     other = "other"
 
+
 class AddProfile(BaseModel):
     name: str
     gender: Gender
@@ -34,6 +35,7 @@ class AddProfile(BaseModel):
             return datetime.strptime(value, "%d.%m.%Y")
         except ValueError:
             raise ValueError("Дата должна быть в формате 'дд.мм.гггг'")
+
 
 class FormProfileCreate:
     def __init__(

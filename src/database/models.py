@@ -41,7 +41,7 @@ class Profiles(Base):
     bio: Mapped[str] = mapped_column(String)
     photo_url: Mapped[str] = mapped_column(nullable=True)
     photo_public_id: Mapped[str] = mapped_column(nullable=True)
-
+    test_score: Mapped[float] = mapped_column(nullable=True)
 
     @property
     def to_json(self):
@@ -56,7 +56,8 @@ class Profiles(Base):
             "region": self.region,
             "city": self.city,
             "bio": self.bio,
-            "photo_url": self.photo_url
+            "photo_url": self.photo_url,
+            "test_score": self.test_score
         }
 
     @property
@@ -131,3 +132,43 @@ class City(GeoBase):
     region_id: Mapped[int] = mapped_column(ForeignKey("regions.id"))
 
     region: Mapped["Region"] = relationship(backref="cities")
+
+
+class Like(Base):
+    __tablename__ = "likes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, nullable=False)
+    from_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    to_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+    from_user: Mapped["Users"] = relationship(
+        "Users",
+        foreign_keys=[from_user_id],
+        backref="likes_sent"
+    )
+    to_user: Mapped["Users"] = relationship(
+        "Users",
+        foreign_keys=[to_user_id],
+        backref="likes_received"
+    )
+
+
+class Match(Base):
+    __tablename__ = "matches"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, nullable=False)
+    liking_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    liked_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+    liking_user: Mapped["Users"] = relationship(
+        "Users",
+        foreign_keys=[liking_user_id],
+        backref="matches_sent"
+    )
+    liked_user: Mapped["Users"] = relationship(
+        "Users",
+        foreign_keys=[liked_user_id],
+        backref="matches_received"
+    )
+
+
