@@ -1,10 +1,13 @@
 import pytest_asyncio
 from httpx import AsyncClient
 from httpx import ASGITransport
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+
+from auth.utils import hash_password
 from src.main import app as fastapi_app
 from src.auth.dependencies import get_async_session
-from src.database.models import Base
+from src.database.models import Base, Users
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 test_engine = create_async_engine(TEST_DATABASE_URL, echo=False)
@@ -36,3 +39,22 @@ async def client():
     transport = ASGITransport(app=fastapi_app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+
+@pytest_asyncio.fixture()
+async def test_user(test_db_session: AsyncSession):
+    user = Users(
+        email="testuser@example.com",
+        password=hash_password("arseniyilana611"),
+        is_confirmed=True
+    )
+    test_db_session.add(user)
+    await test_db_session.commit()
+    await test_db_session.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def clear_users(test_db_session):
+    await test_db_session.execute(delete(Users))
+    await test_db_session.commit()

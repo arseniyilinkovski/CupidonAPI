@@ -83,57 +83,52 @@ async def add_user_to_db(user_data: UserAdd, session: AsyncSession):
 
 
 async def login_user_from_db(user_data: UserLogin, session: AsyncSession):
-    try:
 
-        user = await session.scalar(select(Users).where(Users.email == user_data.email))
-        if not user or not verify_password(user_data.password, user.password):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Ошибочные данные!"
-            )
-        user_scopes = await session.scalars(
-            select(Scopes.name).join(UserScopeLink).where(UserScopeLink.user_id == user.id)
-        )
-        access_token = create_access_token({"sub": user.email}, list(user_scopes))
-        existing_refresh_tokens = await session.scalars(
-            select(RefreshTokens).where(RefreshTokens.user_id == user.id)
-        )
-        refresh_tokens_list = list(existing_refresh_tokens)
-        if len(refresh_tokens_list) > 40:
-            tokens_to_delete = sorted(refresh_tokens_list, key=lambda t: t.expires_at)[:len(refresh_tokens_list) - 5]
-            for token in tokens_to_delete:
-                await session.delete(token)
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Превышено время одновременных сессий!"
-            )
-        refresh_token = RefreshTokens(
-            user_id=user.id,
-            expires_at=datetime.utcnow() + timedelta(days=settings.get_refresh_token_expire_days())
-        )
-        session.add(refresh_token)
-        await session.commit()
-
-        response = JSONResponse(
-            content={
-                "access_token": access_token,
-                "token_type": "bearer"
-            }
-        )
-        response.set_cookie(
-            key="refresh_token",
-            value=refresh_token.token,
-            httponly=True,
-            secure=True,
-            samesite="strict",
-            max_age=60 * 60 * 24 * settings.get_refresh_token_expire_days()
-        )
-        return response
-    except ValidationError:
+    user = await session.scalar(select(Users).where(Users.email == user_data.email))
+    if not user or not verify_password(user_data.password, user.password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Введены неверные данные"
+            detail="Ошибочные данные!"
         )
+    user_scopes = await session.scalars(
+        select(Scopes.name).join(UserScopeLink).where(UserScopeLink.user_id == user.id)
+    )
+    access_token = create_access_token({"sub": user.email}, list(user_scopes))
+    existing_refresh_tokens = await session.scalars(
+        select(RefreshTokens).where(RefreshTokens.user_id == user.id)
+    )
+    refresh_tokens_list = list(existing_refresh_tokens)
+    if len(refresh_tokens_list) > 40:
+        tokens_to_delete = sorted(refresh_tokens_list, key=lambda t: t.expires_at)[:len(refresh_tokens_list) - 5]
+        for token in tokens_to_delete:
+            await session.delete(token)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Превышено время одновременных сессий!"
+        )
+    refresh_token = RefreshTokens(
+        user_id=user.id,
+        expires_at=datetime.utcnow() + timedelta(days=settings.get_refresh_token_expire_days())
+    )
+    session.add(refresh_token)
+    await session.commit()
+
+    response = JSONResponse(
+        content={
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token.token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        max_age=60 * 60 * 24 * settings.get_refresh_token_expire_days()
+    )
+    return response
+
 
 
 async def refresh_access_token_in_db(token: str, session: AsyncSession):
