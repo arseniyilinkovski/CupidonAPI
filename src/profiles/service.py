@@ -1,11 +1,11 @@
 from datetime import datetime
 
 from fastapi import HTTPException, Request
-from sqlalchemy import select
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from src.database.models import Profiles, Country, Region, City, Like
+from src.database.models import Profiles, Country, Region, City, Like, ProfileViewHistory
 from src.profiles.dependencies import get_nsfw_model
 from src.profiles.schemas import AddProfile, FormProfileCreate
 from src.profiles.utils import upload_photo_to_cloudinary, delete_photo_from_cloudinary
@@ -37,7 +37,7 @@ async def add_user_profile_to_db(data: AddProfile, session: AsyncSession, user_i
         photo_public_id=photo["photo_public_id"]
     )
     session.add(new_profile)
-    await assign_scopes_to_user(session, ['profile:edit', 'profile:like'], user_id)
+    await assign_scopes_to_user(session, ['profile:edit', 'profile:like', 'profile:view'], user_id)
     await session.commit()
     return {
         "message": "Профиль успешно создан",
@@ -104,6 +104,14 @@ async def validate_user_geo(profile: AddProfile, session: AsyncSession):
     )
     if not city:
         raise ValueError(f"Город '{profile.city}' не найден в регионе '{profile.region}'")
+
+
+async def has_been_viewed(viewed_user_id, target_user, session: AsyncSession) -> bool:
+    view_history = await session.scalar(
+        select(ProfileViewHistory).where(ProfileViewHistory.target_user_id == target_user.id)
+        .where(ProfileViewHistory.viewed_id == viewed_user_id)
+    )
+    return view_history is not None
 
 
 async def get_user_profile_from_db(user_id: int, session: AsyncSession):
@@ -220,3 +228,54 @@ async def like_user_profile_in_db(
         "message": f"Вы успешно лайкнули пользовтеля {liked_user_profile.name}",
         "new_test_score": current_test_score
     }
+
+
+async def get_next_profile(
+        target_user,
+        session: AsyncSession,
+        action: str,
+):
+    target_profile = await session.scalar(
+        select(Profiles)
+        .where(Profiles.user_id == target_user.id)
+    )
+    if not target_profile or target_profile.test_score is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Профиль еще не создан"
+        )
+
+    viewed_res = await session.scalars(
+        select(ProfileViewHistory.viewed_user_id).where(ProfileViewHistory.viewing_user_id == target_user.id))
+
+    viewed_ids = set(viewed_res.all())
+
+    excluded_ids = viewed_ids.union({target_user.id})
+
+    next_profile = await session.scalar(
+        select(Profiles)
+        .where(
+            and_(
+                Profiles.user_id.notin_(excluded_ids),
+                Profiles.test_score.is_not(None)
+            )
+        )
+        .order_by(func.abs(Profiles.test_score - target_profile.test_score))
+        .limit(1)
+    )
+
+    if next_profile:
+        session.add(
+            ProfileViewHistory(
+                viewed_user_id=next_profile.user_id,
+                viewing_user_id=target_user.id,
+                action=action,
+                timestamp=datetime.utcnow()
+            )
+        )
+        await session.commit()
+        return next_profile.to_json
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="нет доступных профилей"
+    )

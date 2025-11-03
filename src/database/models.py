@@ -1,5 +1,7 @@
 import uuid
 from datetime import datetime, date
+from enum import Enum
+
 from sqlalchemy import Integer, String, ForeignKey, func, DateTime, UniqueConstraint
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -170,5 +172,16 @@ class Match(Base):
         foreign_keys=[liked_user_id],
         backref="matches_received"
     )
+
+
+class ProfileViewHistory(Base):
+    __tablename__ = "prfoile_view_histories"
+
+    id: Mapped[int] = mapped_column(primary_key=True, nullable=False, autoincrement=True)
+    viewed_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    viewing_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    action: Mapped[str] = mapped_column(String)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow())
+
 
 

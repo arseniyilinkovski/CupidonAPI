@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     CLOUDINARY_NAME: str
     CLOUDINARY_API_KEY: str
     CLOUDINARY_API_SECRET: str
-
+    PYTHONPATH: str
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env")
     )
