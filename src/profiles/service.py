@@ -5,8 +5,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from src.database.models import Profiles, Country, Region, City, Like, ProfileViewHistory
-from src.profiles.dependencies import get_nsfw_model
+from src.database.models import Profiles, Country, Region, City, Like, ProfileViewHistory, Dislike
 from src.profiles.schemas import AddProfile, FormProfileCreate
 from src.profiles.utils import upload_photo_to_cloudinary, delete_photo_from_cloudinary
 from src.scopes.service import assign_scopes_to_user
@@ -37,7 +36,7 @@ async def add_user_profile_to_db(data: AddProfile, session: AsyncSession, user_i
         photo_public_id=photo["photo_public_id"]
     )
     session.add(new_profile)
-    await assign_scopes_to_user(session, ['profile:edit', 'profile:like', 'profile:view'], user_id)
+    await assign_scopes_to_user(session, ['profile:edit', 'profile:like', 'profile:view', 'profile:dislike'], user_id)
     await session.commit()
     return {
         "message": "Профиль успешно создан",
@@ -154,20 +153,95 @@ async def change_user_profile_in_db(form, session: AsyncSession, user, request: 
         if value is not None:
             setattr(user_profile, field, value)
     if form.photo:
-        print("Получен файл:", form.photo.filename)
-        print("Тип:", form.photo.content_type)
+
         if user_profile.photo_public_id:
             delete_photo_from_cloudinary(user_profile.photo_public_id)
             result = upload_photo_to_cloudinary(form.photo, request)
             user_profile.photo_url = result["photo_url"]
             user_profile.photo_public_id = result["photo_public_id"]
-
-            print("Новый URL:", result["photo_url"])
-            print("Старый URL:", user_profile.photo_url)
     await session.commit()
     return {
         "status": 200,
         "photo_url": user_profile.photo_url
+    }
+
+
+async def dislike_user_profile_in_db(
+        disliked_user_id: int,
+        session: AsyncSession,
+        user
+):
+    disliked_user_profile = await session.scalar(
+        select(Profiles).where(Profiles.user_id == disliked_user_id)
+    )
+
+    if not disliked_user_profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Профиль пользователя, которого лайнкнули, не найден"
+        )
+    dislike = await session.scalar(select(Dislike).where(Dislike.from_user_id == user.id and
+                                                         Dislike.to_user_id == disliked_user_id))
+    if dislike:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Такая запись в таблице dislikes существует"
+        )
+    disliking_user_profile = await session.scalar(
+        select(Profiles).where(Profiles.user_id == user.id)
+    )
+    if not disliking_user_profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Профиль пользователя, который лайкнул, не найден"
+        )
+    if disliking_user_profile.user_id == disliked_user_profile.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Невозможно совершить дизлайк между одними и теми же пользователями"
+        )
+    view_history = await session.scalars(
+        select(ProfileViewHistory)
+        .where(ProfileViewHistory.viewing_user_id == user.id)
+        .where(ProfileViewHistory.viewed_user_id == disliked_user_profile.user_id)
+    )
+    view_history_list = view_history.all()
+    if view_history_list:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Вы уже лайкали/дизлайкали этого пользователя"
+        )
+    new_dislike = Dislike(
+        from_user_id=user.id,
+        to_user_id=disliked_user_id
+    )
+    session.add(
+        ProfileViewHistory(
+            viewed_user_id=disliked_user_id,
+            viewing_user_id=user.id,
+            action="dislike",
+            timestamp=datetime.utcnow()
+        )
+    )
+    session.add(new_dislike)
+
+    current_test_score = disliking_user_profile.test_score
+    disliked_test_score = disliked_user_profile.test_score
+
+    if current_test_score is not None and disliked_test_score is not None:
+        if current_test_score < disliked_test_score:
+            delta = (disliked_test_score - current_test_score) / 2
+            current_test_score -= delta
+        elif current_test_score > disliked_test_score:
+            delta = (current_test_score - disliked_test_score) / 2
+            current_test_score += delta
+    # float(current_test_score) = max(0, min(10, current_test_score))
+    # disliking_user_profile.test_score = current_test_score
+    await session.commit()
+    return {
+        "status": 200,
+        "message": f"Вы успешно дизлайкнули пользовтеля {disliked_user_profile.name}",
+        "new_test_score": current_test_score
     }
 
 
@@ -176,17 +250,6 @@ async def like_user_profile_in_db(
         session: AsyncSession,
         user
 ):
-    like = await session.scalar(select(Like).where(Like.from_user_id == user.id and Like.to_user_id == liked_user_id))
-    if like:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Такая запись в таблице лайк существует"
-        )
-    new_like = Like(
-        from_user_id=user.id,
-        to_user_id=liked_user_id
-    )
-    # session.add(new_like)
     liked_user_profile = await session.scalar(
         select(Profiles).where(Profiles.user_id == liked_user_id)
     )
@@ -195,6 +258,12 @@ async def like_user_profile_in_db(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Профиль пользователя, которого лайнкнули, не найден"
+        )
+    like = await session.scalar(select(Like).where(Like.from_user_id == user.id and Like.to_user_id == liked_user_id))
+    if like:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Такая запись в таблице likes существует"
         )
     liking_user_profile = await session.scalar(
         select(Profiles).where(Profiles.user_id == user.id)
@@ -209,7 +278,31 @@ async def like_user_profile_in_db(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Невозможно совершить лайк между одними и теми же пользователями"
         )
+    view_history = await session.scalars(
+        select(ProfileViewHistory)
+        .where(ProfileViewHistory.viewing_user_id == user.id)
+        .where(ProfileViewHistory.viewed_user_id == liked_user_profile.user_id)
+    )
+    view_history_list = view_history.all()
 
+    if view_history_list:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Вы уже лайкали/дизлайкали этого пользователя"
+        )
+    new_like = Like(
+        from_user_id=user.id,
+        to_user_id=liked_user_id
+    )
+    session.add(
+        ProfileViewHistory(
+            viewed_user_id=liked_user_id,
+            viewing_user_id=user.id,
+            action="like",
+            timestamp=datetime.utcnow()
+        )
+    )
+    session.add(new_like)
     current_test_score = liking_user_profile.test_score
     liked_test_score = liked_user_profile.test_score
     if current_test_score < liked_test_score:
@@ -220,8 +313,8 @@ async def like_user_profile_in_db(
         current_test_score -= delta
 
     liking_user_profile.test_score = current_test_score
-    print(current_test_score)
-    print(liking_user_profile.test_score)
+    current_test_score = max(0, min(10, current_test_score))
+    liking_user_profile.test_score = current_test_score
     await session.commit()
     return {
         "status": 200,
@@ -233,7 +326,6 @@ async def like_user_profile_in_db(
 async def get_next_profile(
         target_user,
         session: AsyncSession,
-        action: str,
 ):
     target_profile = await session.scalar(
         select(Profiles)
@@ -265,17 +357,10 @@ async def get_next_profile(
     )
 
     if next_profile:
-        session.add(
-            ProfileViewHistory(
-                viewed_user_id=next_profile.user_id,
-                viewing_user_id=target_user.id,
-                action=action,
-                timestamp=datetime.utcnow()
-            )
-        )
         await session.commit()
         return next_profile.to_json
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail="нет доступных профилей"
     )
+

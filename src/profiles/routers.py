@@ -3,10 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependencies import get_async_session
 from src.auth.service import get_current_user, require_scope
-from src.profiles.schemas import AddProfile, FormProfileCreate, FormProfileUpdate
-from src.profiles.service import add_user_profile_to_db, validate_user_geo, get_user_profile_from_db, \
-    get_profiles_from_db, handle_add_profile, change_user_profile_in_db, like_user_profile_in_db, get_next_profile
-from src.profiles.utils import upload_photo_to_cloudinary
+from src.profiles.schemas import FormProfileCreate, FormProfileUpdate
+from src.profiles.service import get_user_profile_from_db, \
+    get_profiles_from_db, handle_add_profile, change_user_profile_in_db, like_user_profile_in_db, get_next_profile, \
+    dislike_user_profile_in_db
 
 profiles_router = APIRouter()
 
@@ -28,10 +28,6 @@ async def get_user_profile(
         session: AsyncSession = Depends(get_async_session)
 ):
     return await get_user_profile_from_db(user.id, session)
-
-#TODO: Выводятся пять анкет (стек)  с наиболее близким значением test_score таблицы Profiles.
-#TODO: Сделать эндпоинт для добавления анкеты в стек (учитывать то, что сделал пользователь (лайкнул или дизлайкнул))
-#TODO: Также предусомореть, что пользователь уже лайкнул этого юзера (возможный вариант: в /get_profile проверять есть ли лайк этого пользователя в БД)
 
 
 @profiles_router.get("/get_profiles")
@@ -59,13 +55,22 @@ async def like_user_profile(
         session: AsyncSession = Depends(get_async_session),
         user=Depends(require_scope("profile:like"))
 ):
-     return await like_user_profile_in_db(liked_user_id, session, user)
+    return await like_user_profile_in_db(liked_user_id, session, user)
 
 
 @profiles_router.get("/next_profile")
 async def next_profile_handle(
-        action: str,
         user=Depends(require_scope("profile:view")),
         session: AsyncSession = Depends(get_async_session),
 ):
-    return await get_next_profile(user, session, action)
+    return await get_next_profile(user, session)
+
+
+@profiles_router.post("/dislike")
+async def dislike_user_profile(
+        disliked_user_id: int,
+        user=Depends(require_scope("profile:dislike")),
+        session: AsyncSession = Depends(get_async_session)
+):
+    return await dislike_user_profile_in_db(disliked_user_id, session, user)
+

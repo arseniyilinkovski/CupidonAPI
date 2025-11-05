@@ -50,6 +50,7 @@ class FormProfileCreate:
         bio: str = Form(...),
         photo: UploadFile = File(...)
     ):
+
         self.photo = photo
         print("PHOTO:", photo.filename)
         print("CONTENT TYPE:", photo.content_type)

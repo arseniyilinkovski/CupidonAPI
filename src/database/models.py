@@ -155,6 +155,25 @@ class Like(Base):
     )
 
 
+class Dislike(Base):
+    __tablename__ = "dislikes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, nullable=False)
+    from_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    to_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+    from_user: Mapped["Users"] = relationship(
+        "Users",
+        foreign_keys=[from_user_id],
+        backref="dislikes_sent"
+    )
+    to_user: Mapped["Users"] = relationship(
+        "Users",
+        foreign_keys=[to_user_id],
+        backref="dislikes_received"
+    )
+
+
 class Match(Base):
     __tablename__ = "matches"
 
