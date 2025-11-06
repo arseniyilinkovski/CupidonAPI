@@ -5,7 +5,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from src.database.models import Profiles, Country, Region, City, Like, ProfileViewHistory, Dislike
+from src.database.models import Profiles, Country, Region, City, Like, ProfileViewHistory, Dislike, Match
 from src.profiles.schemas import AddProfile, FormProfileCreate
 from src.profiles.utils import upload_photo_to_cloudinary, delete_photo_from_cloudinary
 from src.scopes.service import assign_scopes_to_user
@@ -315,6 +315,15 @@ async def like_user_profile_in_db(
     liking_user_profile.test_score = current_test_score
     current_test_score = max(0, min(10, current_test_score))
     liking_user_profile.test_score = current_test_score
+    if await is_match(liking_user_profile.user_id, session):
+        await create_match(liked_user_id, liking_user_profile.user_id, session)
+        await delete_entries_in_likes(liked_user_id, liking_user_profile.user_id, session)
+        return {
+            "status": 200,
+            "message": f"Вы успешно лайкнули пользовтеля {liked_user_profile.name}",
+            "info": f"Произошел метч",
+            "new_test_score": current_test_score
+        }
     await session.commit()
     return {
         "status": 200,
@@ -363,4 +372,57 @@ async def get_next_profile(
         status_code=status.HTTP_404_NOT_FOUND,
         detail="нет доступных профилей"
     )
+
+
+async def is_match(viewing_user_id, session: AsyncSession) -> bool:
+    info = await session.scalar(
+        select(ProfileViewHistory)
+        .where(ProfileViewHistory.viewed_user_id == viewing_user_id)
+
+    )
+    if not info:
+        return False
+
+    if info.action == "like":
+        return True
+    return False
+
+
+async def create_match(viewed_user_id: int, viewing_user_id: int, session: AsyncSession):
+    match = Match(
+        liking_user_id=viewing_user_id,
+        liked_user_id=viewed_user_id
+    )
+    print()
+    if match:
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Этот метч уже был"
+        )
+
+    session.add(match)
+    await session.commit()
+
+
+async def delete_entries_in_likes(viewed_user_id: int, viewing_user_id: int, session: AsyncSession):
+    viewing_like = await get_likes_entry(viewing_user_id, session)
+    if not viewing_like:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Записи в таблице likes не найдены"
+        )
+    await session.delete(viewing_like)
+    await session.commit()
+
+
+async def get_likes_entry(user_id, session: AsyncSession):
+    likes_entry = await session.scalar(
+        select(Like)
+        .where(Like.from_user_id == user_id)
+    )
+    return likes_entry
+
+#TODO: разобраться с 397 строчкой
+#TODO: Функция для вывода профилей, которые лайкнули юзера
 

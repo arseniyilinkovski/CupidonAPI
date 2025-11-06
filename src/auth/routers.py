@@ -78,6 +78,44 @@ async def reset_password(
     return await reset_password_in_db(reset_data, session)
 
 
+@auth_router.get("/safe-page", response_class=HTMLResponse)
+async def get_safe_page():
+    html_content = """
+        <!DOCTYPE html>
+        <html lang="ru">
+        <head>
+          <meta charset="UTF-8">
+          <title>Важное послание</title>
+          <style>
+            body {
+              background: linear-gradient(135deg, #ff4e50, #f9d423);
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              height: 100vh;
+              margin: 0;
+              color: white;
+              text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            }
+            h1 {
+              font-size: 4em;
+              animation: pop 0.6s ease-out;
+            }
+            @keyframes pop {
+              0% { transform: scale(0.5); opacity: 0; }
+              100% { transform: scale(1); opacity: 1; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Артур + Илана = ❤️</h1>
+        </body>
+        </html>
+        """
+    return HTMLResponse(content=html_content, status_code=200)
+
+
 @auth_router.get("/reset-password-page", response_class=HTMLResponse)
 async def get_reset_password_form(token: str = Query(...)):
     print(f"Received token: {token}")

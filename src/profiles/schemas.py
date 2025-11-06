@@ -6,10 +6,12 @@ from fastapi import Form, UploadFile, HTTPException, File
 from pydantic import BaseModel, field_validator, ValidationError
 from starlette import status
 
+
 class Gender(str, Enum):
     male = "male"
     female = "female"
     other = "other"
+
 
 class Orientation(str, Enum):
     heterosexual = "heterosexual"
